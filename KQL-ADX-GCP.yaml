@@ -1,0 +1,43 @@
+Descriptor:
+  Name: Summarize recent audit logs from GCP (Google Cloud Platform) for a certain user, ip address and time range from logs in Azure data Explorer (ADX)
+  DisplayName: "Sentinel KQL: GCP Audit Logs"
+  Description: Get the recent audit logs from GCP (Google Cloud Platform) for a certain user, ip address and time range from logs in Azure data Explorer (ADX)
+  #Can you describe in detail over a few paragraphs the GCP Audit Log operations associated with user@domain.com over the last 90 days?? Be sure to also include all the logs in a format I can export.
+SkillGroups:
+  - Format: KQL
+    Skills:
+      - Name: Get GCP AuditLogs
+        DisplayName: Get GCP Audit Logs
+        Description: Fetches audit logs from GCP (Google Cloud Platform) for a certain user, ip address and time range from logs in Azure data Explorer (ADX)
+        Inputs:
+          - Name: userPrincipalName
+            Description: The username principal name to lookup
+            Required: false
+          - Name: ip
+            Description: The ip to lookup
+            Required: false
+          - Name: fromDateTime
+            Description: The from time and date
+            Required: true
+          - Name: toDateTime
+            Description: The to time and date
+            Required: true
+        Settings:
+          Target: Kusto
+          Cluster: https://alipine-cluster01.eastus.kusto.windows.net
+          Database: db01
+          Template: |-
+            let userPrincipalName='{{userPrincipalName}}';
+            let ip='{{ip}}';
+            let fromDateTime=datetime('{{fromDateTime}}');
+            let toDateTime=datetime('{{toDateTime}}');
+            GCPAuditLogs
+            | extend Metadata = parse_json(RequestMetadata)
+            | extend callerIp = Metadata.callerIp
+            | extend userAgent = Metadata.callerSuppliedUserAgent
+            | where datetime_utc_to_local(TimeGenerated, "US/Pacific") between ( fromDateTime .. toDateTime )
+            | where PrincipalEmail like userPrincipalName
+            | where ServiceName == "logging.googleapis.com"
+            | where callerIp like ip
+            | project TimeGenerated, PrincipalEmail, callerIp, userAgent, MethodName, GCPResourceName, Status, AuthenticationInfo, AuthorizationInfo, Request, ProjectId, Severity, GCPResourceType, Type
+                
